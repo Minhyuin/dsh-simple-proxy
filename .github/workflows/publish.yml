@@ -1,0 +1,159 @@
+name: publish
+
+# Publishes the npm package that dsh.so and `dsh plugin add` both point at: the
+# market checks the *published* tarball (https://www.dsh.so/zh/submit/), so the
+# tarball — not a git ref — is the artifact that has to pass the gates.
+#
+# Two entry points, because the tag that release.yml pushes cannot trigger a
+# workflow on its own: GitHub suppresses workflow runs for events created with the
+# default GITHUB_TOKEN, so `on: push: tags` never fires for that tag. Hence
+# `workflow_run` below, which is what actually runs in the normal flow; the tag
+# filter stays for a tag pushed by hand (a PAT / a human push does trigger it).
+#
+# Requires two things set once on the repository, neither of which a workflow can
+# create for itself:
+#   * the secret NPM_TOKEN — an npm automation/granular token with publish rights
+#     on dsh-simple-proxy. Without it this job stops at "Check the token acts as
+#     the expected account" with a message that says so, instead of failing deep
+#     inside npm.
+#   * a PUBLIC repository — `publishConfig.provenance` signs the tarball against
+#     the workflow run, and npm refuses provenance for a private source repository.
+#     Drop `provenance` from plugin/package.json if the repo has to stay private.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (default: newest tag npm has never seen)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write # npm provenance (publishConfig.provenance in plugin/package.json)
+
+jobs:
+  # A `workflow_run` event carries no tag, so it fires on every release run —
+  # including the ones that release nothing. The tag is therefore resolved by
+  # asking the registry which release tag npm has never seen: that answer is empty
+  # when the release run created no tag, and it is the right answer when an earlier
+  # publish failed halfway.
+  #
+  # The checkout is load-bearing: without it there is no `origin` and no tags, and
+  # the tag list below comes back empty — which would look like "nothing to
+  # publish" instead of an error.
+  resolve:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.pick.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # all history and all tags
+
+      - name: Pick the version to publish
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          version=""
+          if [ "$EVENT" = "push" ]; then
+            version="${REF_NAME#v}"             # a hand-pushed tag states its own version
+          else
+            version="${INPUT_TAG#v}"            # an explicit dispatch wins
+            if [ -z "$version" ]; then
+              tags="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)"
+              if [ -z "$tags" ]; then
+                echo "::error::no release tags visible — refusing to guess a version"
+                exit 1
+              fi
+              for tag in $tags; do
+                if ! npm view "dsh-simple-proxy@${tag#v}" version >/dev/null 2>&1; then
+                  version="${tag#v}"            # the newest tag npm has never seen
+                  break
+                fi
+              done
+            fi
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "publishing version: ${version:-<none>}"
+
+  publish:
+    needs: resolve
+    if: needs.resolve.outputs.version != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'push' && github.ref || format('v{0}', needs.resolve.outputs.version) }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      # A missing token, a valid token and an authorized token are three different
+      # failures: the first is caught here with the fix in the message, and the
+      # second is named by `npm whoami` — so a wrong-scope token is distinguishable
+      # from a wrong-account one without decoding a 403.
+      - name: Check the token acts as the expected account
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::the NPM_TOKEN secret is not set — add an npm token with publish rights on dsh-simple-proxy (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+          echo "publishing as: $(npm whoami)"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # The plugin ships no build step: both halves are hand-written plain JS. The
+      # only install is what the suites themselves import.
+      - name: Install the workspace dependencies
+        run: npm ci --no-audit --no-fund
+
+      # The tag is the version. Details are not kept in plugin/package.json between
+      # releases — this repository records a release as the git tag and a GitHub
+      # release, and the manifest catches up when it is published — so the tag is
+      # written in here rather than compared against a stale manifest value. Doing it
+      # before the gates means the checks below grade the exact bytes that ship.
+      - name: Stamp the tag version into plugin/package.json
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+        working-directory: plugin
+
+      - name: Host half — dispatcher install, reconcile, loopback routes, relay
+        run: node tools/test-host.mjs
+
+      - name: Client half — styles, settings page, probe and save
+        run: node tools/test-client.mjs
+
+      - name: Grade the tarball against the dsh.so submission gates
+        run: node tools/check-submission.mjs
+
+      - name: Refuse to publish a version npm already has
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          if npm view "dsh-simple-proxy@$VERSION" version >/dev/null 2>&1; then
+            echo "::error::dsh-simple-proxy@$VERSION is already on npm — bump instead of re-releasing"
+            exit 1
+          fi
+
+      - name: Publish to npm
+        run: npm publish
+        working-directory: plugin
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

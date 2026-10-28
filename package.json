@@ -1,0 +1,18 @@
+{
+  "name": "dsh-simple-proxy-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Development workspace for the dsh-simple-proxy plugin. The publishable package lives in plugin/; this root only holds the dependencies its Host half imports, because a profile that links the plugin resolves bare imports from the plugin's real path.",
+  "scripts": {
+    "test": "node tools/test-host.mjs && node tools/test-client.mjs",
+    "test:host": "node tools/test-host.mjs",
+    "test:client": "node tools/test-client.mjs",
+    "check:submission": "node tools/check-submission.mjs"
+  },
+  "devDependencies": {
+    "@deepseek-ai/schemastery": "3.18.4",
+    "undici": "^7.30.0"
+  },
+  "license": "MIT"
+}

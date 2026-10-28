@@ -1,0 +1,98 @@
+{
+  "name": "dsh-simple-proxy",
+  "version": "0.1.0",
+  "description": "Switch DSH's own outbound HTTP onto a local proxy from Settings — no proxy environment variables before launch, no TUN.",
+  "author": "Minhyuin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Minhyuin/dsh-proxy.git",
+    "directory": "plugin"
+  },
+  "homepage": "https://github.com/Minhyuin/dsh-proxy#readme",
+  "bugs": {
+    "url": "https://github.com/Minhyuin/dsh-proxy/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "proxy",
+    "network",
+    "undici"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.0-rc.2 <0.3.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "engines": {
+      "dsh": ">=0.2.0-rc.2 <0.3.0"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
+    },
+    "manifestVersion": 1
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-api-remotes": "^0.2.0-rc.2 || ^0.2.1-alpha.1",
+    "@deepseek-ai/dsh-client-locale": "^0.2.0-rc.2 || ^0.2.1-alpha.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.0-rc.2 || ^0.2.1-alpha.1",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.2.0-rc.2 || ^0.2.1-alpha.1",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "react": "^18.2.0",
+    "undici": "^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-api-remotes": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-primitives": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-slots": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "undici": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/schemastery": "3.18.4"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

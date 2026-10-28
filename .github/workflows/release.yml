@@ -1,0 +1,66 @@
+name: release
+
+# A push to the release branch derives the next tag from Conventional Commits, and
+# the tag becomes a GitHub Release whose notes GitHub generates from the commits.
+#
+# The version arithmetic lives in .github/scripts/release.sh rather than in
+# mathieudutour/github-tag-action, because that action diffs the latest tag
+# against HEAD through the API: on a repository whose first push has no tag yet
+# the comparison is empty and it reports "Analysis of 0 commits complete: no
+# release" — a brand-new project would never get its first release. The rules
+# below are the reference project's rules (docs bumps a patch; ci/refactor/
+# chore/style/build/test release nothing, since there is no prerelease channel to
+# put a nightly number in).
+#
+# The tag this pushes does NOT trigger publish.yml by itself: GitHub suppresses
+# workflow runs for events created with the default GITHUB_TOKEN. publish.yml
+# therefore also listens on `workflow_run` for this workflow, which is the path
+# that actually runs in the normal flow.
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive the next version
+        id: version
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        run: bash .github/scripts/release.sh
+
+      - name: Report the outcome
+        run: |
+          if [ "${{ steps.version.outputs.released }}" = "true" ]; then
+            echo "releasing ${{ steps.version.outputs.tag }} (previous ${{ steps.version.outputs.previous }})"
+          else
+            echo "no release: nothing since ${{ steps.version.outputs.previous }} matches a release rule"
+          fi
+
+      - name: Push the tag
+        if: steps.version.outputs.released == 'true'
+        run: |
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create a GitHub release
+        if: steps.version.outputs.released == 'true'
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          makeLatest: true
+          generateReleaseNotes: true

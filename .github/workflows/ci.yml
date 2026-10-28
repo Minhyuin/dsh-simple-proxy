@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push: {}
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The plugin ships no build step: both halves are hand-written plain JS. The
+      # only install is what the suites themselves import — schemastery for the
+      # manifest's schema, undici for the network layer's copies. `npm ci` because
+      # the lock file is committed; never regenerate it with a linked node_modules
+      # present, or npm records that link instead.
+      - name: Install the workspace dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Host half — dispatcher install, reconcile, loopback routes, relay
+        run: node tools/test-host.mjs
+
+      - name: Client half — styles, settings page, probe and save
+        run: node tools/test-client.mjs
+
+      # The market checks the published tarball, not the checkout: this grades what
+      # `npm publish` would upload against the dsh.so submission gates, so a manifest
+      # that stopped declaring its patch file or its DSH version fails here instead.
+      - name: dsh.so submission gates — what the tarball ships
+        run: node tools/check-submission.mjs

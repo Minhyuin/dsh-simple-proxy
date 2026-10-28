@@ -1,0 +1,8 @@
+# Workflow files and the scripts they run execute on Linux (Actions runners); a
+# CRLF check-out would put a stray \r into shebangs and `run:` steps.
+*.mjs text eol=lf
+*.js text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.sh text eol=lf

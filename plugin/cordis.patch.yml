@@ -1,0 +1,12 @@
+# dsh-simple-proxy leaves the proxy off until the user turns it on in
+# Settings → Plugins → Network proxy. The settings document is addressed by the
+# entry id, so `id:` must stay "dsh-simple-proxy".
+- insert:
+    - id: dsh-simple-proxy
+      name: dsh-simple-proxy
+      config:
+        enabled: false
+        host: 127.0.0.1
+        port: "7890"
+        bypass: deepseek.com
+        probeUrl: https://www.cloudflare.com/cdn-cgi/trace
