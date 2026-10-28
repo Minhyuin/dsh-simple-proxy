@@ -10,8 +10,7 @@
  *   1. DSH compatibility signal  — a top-level `dsh` manifest, patch file included
  *   2. README with install instructions
  *   3. Open-source license with a recognizable SPDX identifier, file included
- *   4. Valid plugin id           — slug; the market derives the id from the package
- *                                  name, and prefers that name to equal the repo name
+ *   4. Valid plugin id           — a slug, equal to the repository name
  *   5. Declared versions         — engines.node / engines.dsh, resolvable entry
  *   6. Scannable source          — JS in the tarball, no development-only files
  *   7. Security scan             — not checkable from here: vet grades it server-side.
@@ -34,16 +33,6 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pluginDir = join(root, "plugin");
 
-/**
- * The package name and the repository name are allowed to differ here, and the
- * reason is recorded rather than lost: `dsh-proxy` was already owned on npm by
- * another account, so the package had to be published as `dsh-simple-proxy`
- * while the GitHub repository kept its original name. Gate 4 therefore grades
- * the slug, and reports the mismatch as a notice with the remedy spelled out —
- * renaming the repository on GitHub closes it, nothing else needs to change.
- */
-const REPOSITORY_NAME = "dsh-proxy";
-
 /** Every check records a verdict instead of throwing, so one run reports all of them. */
 const checks = [];
 let failed = 0;
@@ -51,11 +40,6 @@ let failed = 0;
 function record(gate, name, ok, detail) {
   checks.push({ gate, name, ok, detail });
   if (!ok) failed += 1;
-}
-
-/** A verdict that is reported but never fails the run. */
-function notice(gate, name, detail) {
-  checks.push({ gate, name, ok: true, notice: true, detail });
 }
 
 /** Human-readable one-liner for an arbitrary value inside a failure message. */
@@ -161,14 +145,13 @@ const repoName = new URL(manifest.repository.url).pathname
 if (repoName === manifest.name) {
   record("4 id", "repository name matches the package name", true, `repo=${repoName} package=${manifest.name}`);
 } else {
-  notice(
+  record(
     "4 id",
-    "repository name differs from the package name",
-    `repo=${show(repoName)} package=${show(manifest.name)} — the npm name was already taken, so the package moved and the repo did not; ` +
-      `rename the GitHub repo to ${manifest.name} to close this gate, or submit the repository URL instead of the package name`,
+    "repository name matches the package name",
+    false,
+    `repo=${show(repoName)} package=${show(manifest.name)} — the market derives the plugin id from the package name and expects it to equal the repository name`,
   );
 }
-record("4 id", "repository points at the declaring repo", repoName === REPOSITORY_NAME, `repo=${show(repoName)} package=${manifest.name}`);
 record(
   "4 id",
   "repository topics (set on GitHub, not in the tarball)",
@@ -276,8 +259,7 @@ function glob(pattern) {
 for (const gate of [...new Set(checks.map((check) => check.gate))]) {
   process.stdout.write(`\n${gate}\n`);
   for (const check of checks.filter((item) => item.gate === gate)) {
-    const mark = check.notice ? "note" : check.ok ? "ok  " : "FAIL";
-    process.stdout.write(`  ${mark} ${check.name} — ${check.detail}\n`);
+    process.stdout.write(`  ${check.ok ? "ok  " : "FAIL"} ${check.name} — ${check.detail}\n`);
   }
 }
 process.stdout.write(`\n${checks.length - failed}/${checks.length} checks passed\n`);

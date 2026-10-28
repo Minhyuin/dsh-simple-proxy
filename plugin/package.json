@@ -5,12 +5,12 @@
   "author": "Minhyuin",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Minhyuin/dsh-proxy.git",
+    "url": "git+https://github.com/Minhyuin/dsh-simple-proxy.git",
     "directory": "plugin"
   },
-  "homepage": "https://github.com/Minhyuin/dsh-proxy#readme",
+  "homepage": "https://github.com/Minhyuin/dsh-simple-proxy#readme",
   "bugs": {
-    "url": "https://github.com/Minhyuin/dsh-proxy/issues"
+    "url": "https://github.com/Minhyuin/dsh-simple-proxy/issues"
   },
   "keywords": [
     "dsh",

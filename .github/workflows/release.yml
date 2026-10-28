@@ -12,10 +12,11 @@ name: release
 # chore/style/build/test release nothing, since there is no prerelease channel to
 # put a nightly number in).
 #
-# The tag this pushes does NOT trigger publish.yml by itself: GitHub suppresses
-# workflow runs for events created with the default GITHUB_TOKEN. publish.yml
-# therefore also listens on `workflow_run` for this workflow, which is the path
-# that actually runs in the normal flow.
+# The tag this pushes does not start any other workflow: GitHub suppresses runs for
+# events created with the default GITHUB_TOKEN, so `on: push: tags` never fires for
+# it. Nothing listens on tags right now — npm publishing is deliberately off (see
+# plugin/package.json's publishConfig for what is already prepared), so the tag and
+# the GitHub Release it points at are the whole release artifact.
 on:
   push:
     branches:
