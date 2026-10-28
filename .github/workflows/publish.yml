@@ -73,8 +73,13 @@ jobs:
             if [ -z "$version" ]; then
               tags="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)"
               if [ -z "$tags" ]; then
-                echo "::error::no release tags visible — refusing to guess a version"
-                exit 1
+                # A repository that has never released has nothing to publish, and this
+                # event fires on every release run — including the ones that release
+                # nothing. That is a no-op, not a failure: the publish job is skipped
+                # below because its version output is empty.
+                echo "no release tags yet — nothing to publish"
+                echo "version=" >> "$GITHUB_OUTPUT"
+                exit 0
               fi
               for tag in $tags; do
                 if ! npm view "dsh-simple-proxy@${tag#v}" version >/dev/null 2>&1; then
